@@ -1,36 +1,9 @@
-# ProciGen
-[ProciGen Dataset](https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.2VUEUS) | [Model trained in ProciGen](https://github.com/xiexh20/HDM))
+# ProciGen with textured mesh
+[ProciGen Dataset](https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.2VUEUS))
 
 ProciGen is a synthetic human-object interaction dataset with **1M+ images** of human interacting with **21k+ different objects**.
 We achieve this by procedurally combining human, object and interaction datasets together. This repo provides code to access
-and generate ProciGen dataset.  
-<p align="left">
-<img src="https://virtualhumans.mpi-inf.mpg.de/procigen-hdm/gif_procigen_7s.gif" alt="teaser" width="512"/>
-</p>
-
-[//]: # (ProciGen stands for **Proc**edural **i**nteraction **Gen**eration. We procedurally combines human, object and interaction datasets together, )
-
-[//]: # (which allows us to generate an interaction dataset of 1M+ images with 21k+ different objects. We call this dataset ProciGen.  )
-
-## Contents
-1. [Dependencies](#dependencies)
-2. [Dataset Structure](#dataset-structure)
-3. [Synthesize ProciGen](#synthesize-procigen)
-4. [License](#license)
-5. [Citation](#citation)
-6. [Acknowledgements](#acknowledgements)
-
-### TODO List
-- [x] Dataset download links.
-- [x] Dataset structure.
-- [x] Contact transfer and optimization.
-- [x] Render new human object interaction.
-- [ ] Autoencoder to compute dense correspondence. 
-- [x] Re-render ProciGen interaction images. 
-
-### Updates
-- Dec 31, 2024. Code to synthesize and render interaction released! 
-- July 08, 2024. Code to align objects and re-render ProciGen dataset released! 
+and generate ProciGen dataset with textured mesh.  
 
 ## Dependencies
 This code is tested on `python 3.10, ubuntu 22.04`. See below for details on installing runtime environment.
@@ -64,32 +37,6 @@ Add these lines to `external/torch-mesh-isect/src/bvh.cpp` before `AT_CHECK` is 
 #endif 
 ```
 finally run `pip install external/torch-mesh-isect/`
-
-## Dataset Structure
-
-**Download links:** dataset can be downloaded from [edmond](https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.2VUEUS). By downloading the dataset, you agree the [LICENSE](./LICENSE).
-
-We follow the similar structure as the [behave dataset](https://github.com/xiexh20/behave-dataset?tab=readme-ov-file#dataset-structure). 
-Namely, each sequence is organized as follows:
-```
-|--ROOT
-|----sequence_name
-|------info.json  # a file storing the calibration information for the sequence
-|------<frame_name>     # one frame folder, name convention: <dummy index>-<scan id>
-|--------k*.color.jpg               # color images of the frame
-|--------k*.person_mask.png         # human masks
-|--------k*.obj_rend_mask.png       # object masks
-|--------k*.obj_rend_full.png       # object masks without occlusion
-|--------k*.depth.png               # [optional] depth images  
-|--------k*.grid_df_res128_b0.5.npz # [optional] precomputed occupancy for human object segmentation
-|--------person
-|----------fit01                    # registered SMPL-H mesh and parameters
-|--------<object_name>
-|----------fit01                    # object registrations
-
-```
-### Human Model
-We store the SMPL-H parameters and corresponding mesh inside each `person/fit01` folder. We use the MANO_V1.2 pkl model with 10 shape parameters and no PCA compression for the hand poses. If you would like to use other body models e.g. SMPL or SMPL-X, please refer to [this repo](https://github.com/vchoutas/smplx/tree/master/transfer_model) for conversions between different body models. 
 
 
 ### Object Model
