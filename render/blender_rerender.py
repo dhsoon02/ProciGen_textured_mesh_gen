@@ -117,7 +117,7 @@ class BlenderRerenderer(BaseRenderer):
             # make human visible again, render human + object
             bpy_hum.hide_render = False
             ################# export human mesh
-            ############### 추가
+            ############### What I Append.
             if k == 0:
                 merged_export_path = join(frame_folder, f'textured_human_obj_mesh.glb')
 
@@ -137,7 +137,7 @@ class BlenderRerenderer(BaseRenderer):
                 print(f"[INFO] Exported combined GLB to: {merged_export_path}")
                 # merged_export_path = join(frame_folder, f'k{k}.human_obj_merged.obj')
 
-                # # 모든 mesh 선택
+                
                 # bpy.ops.object.select_all(action='DESELECT')
                 # for obj in bpy.context.scene.objects:
                 #     if obj.type == 'MESH':
