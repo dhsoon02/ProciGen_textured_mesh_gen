@@ -140,7 +140,8 @@ def load_from_obj_cpp(self, filename):
         self.recompute_landmark_xyz()
 
 
-def write_obj(self, filename, flip_faces=False, group=False, comments=None):
+# def write_obj(self, filename, flip_faces=False, group=False, comments=None):
+def write_obj(self, filename, flip_faces=False, group=False, comments=None, write_mtl=False):
     if os.path.dirname(filename) and not os.path.exists(os.path.dirname(filename)):
         os.makedirs(os.path.dirname(filename))
 
@@ -170,7 +171,8 @@ def write_obj(self, filename, flip_faces=False, group=False, comments=None):
                 for line in comment.split("\n"):
                     fi.write("# %s\n" % line)
 
-        if hasattr(self, 'texture_filepath'):
+        # if hasattr(self, 'texture_filepath'):
+        if write_mtl and hasattr(self, 'texture_filepath'):
             outfolder = os.path.dirname(filename)
             outbase = os.path.splitext(os.path.basename(filename))[0]
             mtlpath = outbase + '.mtl'

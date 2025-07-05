@@ -37,7 +37,9 @@ class BlenderRerenderer(BaseRenderer):
         end = len(frames) if args.end is None else args.end 
         frames = frames[args.start:end]
         seq_name, seq_folder = osp.basename(args.seq_folder), args.seq_folder
+        print(f'[INFO] Rendering sequence {seq_name} from {args.start} to {end}, total {len(frames)} frames')
         dname = get_shape_datasetname(seq_name)
+        print(f'[INFO] Detected dataset name: {dname}')
         obj_name = seq_name.split('_')[2]
         seq_out = osp.join(args.out_dir, seq_name+'_rerender')
         os.makedirs(seq_out, exist_ok=True)
@@ -62,14 +64,17 @@ class BlenderRerenderer(BaseRenderer):
             # load texture uv maps, replacing this with trimesh will result in incorrect uv map
             scan_smpld = Mesh()
             scan_smpld.load_from_obj(scan_path.smpld_reg_obj())
-            scan_smpld.v = smpld_vertices[0].numpy()
+
+            # scan_smpld.v = smpld_vertices[0].numpy()
+            scan_smpld.v = smpld_vertices[0].cpu().numpy().reshape(-1, 3).astype(np.float32)
+
 
             # Output folder
             frame_folder = osp.join(seq_out, osp.basename(frame[:-1]))
 
-            self.render_frame(dname, frame_folder, params_obj, scan_path, scan_smpld)
+            self.render_frame(dname, frame_folder, params_obj, scan_path, scan_smpld, obj_name)
 
-    def render_frame(self, dname, frame_folder, params_obj, scan_path, scan_smpld):
+    def render_frame(self, dname, frame_folder, params_obj, scan_path, scan_smpld, obj_name):
         """
         render multi-view of a single frame
         :param dname: dataset name of the object, shapenet/objaverse/abo
@@ -86,7 +91,7 @@ class BlenderRerenderer(BaseRenderer):
         obj_mat[:3, :3] = params_obj['rot']
         obj_mat[:3, 3] = params_obj['trans']
         synset_id, ins = params_obj['synset_id'], params_obj['ins_name']
-        blender_name_hum = self.import_object2blender(dname, ins, obj_mat, synset_id)
+        blender_name_hum = self.import_object2blender(dname, ins, obj_mat, synset_id, obj_name)
         # add human to blender by saving and reloading directly from blender
         os.makedirs(frame_folder, exist_ok=True)
         scan_smpld.write_obj(osp.join(frame_folder, f'k1.human.obj'))
@@ -96,7 +101,7 @@ class BlenderRerenderer(BaseRenderer):
         bpy_hum = bpy.data.objects[blender_name_hum]
         for k in range(self.camera_count):
             # set output path
-            self.output_rgb.file_slots[0].path = join(frame_folder, f'k{k}.color.')
+            self.output_rgb.file_slots[0].path = join(frame_folder, f'rendering_sample.')
             self.output_depth.file_slots[0].path = join(frame_folder, f'k{k}.depth.')
 
             # transform human and objects to local camera
@@ -107,21 +112,59 @@ class BlenderRerenderer(BaseRenderer):
             bpy_hum.hide_render = True
             bpy.ops.render.render(write_still=True)
             # bpy.ops.wm.save_as_mainfile(filepath=join(frame_folder, f'k{k}.debug.blend'))
-            depth_obj = cv2.imread(join(frame_folder, f'k{k}.depth.0001.exr'), cv2.IMREAD_UNCHANGED)[:, :, 0]
+            # depth_obj = cv2.imread(join(frame_folder, f'k{k}.depth.0001.exr'), cv2.IMREAD_UNCHANGED)[:, :, 0]
 
             # make human visible again, render human + object
             bpy_hum.hide_render = False
-            bpy.ops.render.render(write_still=True)
-            depth_full = cv2.imread(join(frame_folder, f'k{k}.depth.0001.exr'), cv2.IMREAD_UNCHANGED)[:, :, 0]
+            ################# export human mesh
+            ############### 추가
+            if k == 0:
+                merged_export_path = join(frame_folder, f'textured_human_obj_mesh.glb')
 
-            self.format_outfiles(depth_full, depth_obj, frame_folder, k)
+                bpy.ops.object.select_all(action='DESELECT')
+                for obj in bpy.context.scene.objects:
+                    if obj.type == 'MESH':
+                        obj.select_set(True)
+
+                bpy.ops.export_scene.gltf(
+                    filepath=merged_export_path,
+                    export_format='GLB',
+                    export_apply=True,
+                    use_selection=True
+                )
+
+
+                print(f"[INFO] Exported combined GLB to: {merged_export_path}")
+                # merged_export_path = join(frame_folder, f'k{k}.human_obj_merged.obj')
+
+                # # 모든 mesh 선택
+                # bpy.ops.object.select_all(action='DESELECT')
+                # for obj in bpy.context.scene.objects:
+                #     if obj.type == 'MESH':
+                #         obj.select_set(True)
+
+                # bpy.ops.export_scene.obj(
+                #     filepath=merged_export_path,
+                #     use_selection=True,
+                #     use_materials=True,
+                #     path_mode='COPY',
+                #     axis_forward='-Z',
+                #     axis_up='Y'
+                # )
+                # print(f"[INFO] Exported combined mesh to: {merged_export_path}")
+            ################# export human mesh
+            bpy.ops.render.render(write_still=True)
+            # depth_full = cv2.imread(join(frame_folder, f'k{k}.depth.0001.exr'), cv2.IMREAD_UNCHANGED)[:, :, 0]
+
+            # self.format_outfiles(depth_full, depth_obj, frame_folder, k)
             os.system(f"rm {join(frame_folder, f'k{k}.depth.0001.exr')}")
 
             # transform back to k1
             self.transforom_hum_obj_local(np.linalg.inv(transform))
         self.reset_scene()
-        os.system(f"rm {join(frame_folder, f'k1.human.obj')}")
+        # os.system(f"rm {join(frame_folder, f'k1.human.obj')}")
         self.reinit_light()
+
 
     @staticmethod
     def get_parser():
@@ -143,7 +186,9 @@ if __name__ == '__main__':
     parser = BlenderRerenderer.get_parser()
     args = parser.parse_args()
     icap = 'Date09' in args.seq_folder
-    camera_count = 6 if icap else 4
+    # camera_count = 6 if icap else 4
+    # camera_count = 6 if icap else 4
+    camera_count = 1
     camera_config = 'assets/icap_cams' if icap else 'assets/behave_cams'
 
     renderer = BlenderRerenderer(camera_config, camera_count, reso_x=args.resox, reso_y=args.resoy, icap=icap)

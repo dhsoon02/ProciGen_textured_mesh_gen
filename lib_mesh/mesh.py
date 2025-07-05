@@ -461,8 +461,11 @@ class Mesh(object):
         """Serializes a material attributes file"""
         serialization.write_mtl(self, path, material_name, texture_name)
 
-    def write_obj(self, filename, flip_faces=False, group=False, comments=None):
-        serialization.write_obj(self, filename, flip_faces, group, comments)
+    # def write_obj(self, filename, flip_faces=False, group=False, comments=None):
+    #     serialization.write_obj(self, filename, flip_faces, group, comments)
+    def write_obj(self, filename, flip_faces=False, group=False, comments=None, write_mtl=False):
+        serialization.write_obj(self, filename, flip_faces, group, comments, write_mtl=write_mtl)
+
 
     def load_from_obj_cpp(self, filename):
         serialization.load_from_obj_cpp(self, filename)

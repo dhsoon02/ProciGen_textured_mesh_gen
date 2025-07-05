@@ -114,7 +114,7 @@ class NewHOIRenderer(BlenderRerenderer):
             'synset_id': ret['synset_id'],
             'ins_name': ret['ins_name']
         }
-        self.render_frame(dname, frame_folder, obj_params, scan_path, smpld_reg)
+        self.render_frame(dname, frame_folder, obj_params, scan_path, smpld_reg, obj_name)
 
     @staticmethod
     def load_scan_raw(file: str, center=False):
@@ -214,8 +214,11 @@ class NewHOIRenderer(BlenderRerenderer):
         parser.add_argument('-c', '--camera_config', default='assets/behave_cams')
         parser.add_argument('-fs', '--start', default=0, type=int)
         parser.add_argument('-fe', '--end', default=10, type=int)
-        parser.add_argument('-src', '--source', choices=['objaverse', 'shapenet', 'abo'], default='shapenet',
-                            help='source dataset of the new objects')
+        # parser.add_argument('-src', '--source', choices=['objaverse', 'shapenet', 'abo'], default='shapenet',
+        #                     help='source dataset of the new objects')
+        parser.add_argument('-src', '--source', choices=['objaverse', 'shapenet', 'abo', 'custom'],
+                            help='object source dataset')
+
 
         # output config
         parser.add_argument('-o', '--out_dir', default='outputs/render')
@@ -236,7 +239,8 @@ class NewHOIRenderer(BlenderRerenderer):
 
 def main():
     args = NewHOIRenderer.get_parser().parse_args()
-    camera_count = 6 if args.icap else 4
+    # camera_count = 6 if args.icap else 4
+    camera_count = 1
     if args.icap:
         args.resox = 1920//2
         args.resoy = 1080//2

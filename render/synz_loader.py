@@ -150,7 +150,7 @@ class SynzResultLoader:
         :return:
         """
         if self.source == 'shapenet':
-            obj_file = osp.join(self.newshape_root, ho_params['synset_id'], ho_params['ins_name'], 'models/model_normalized.obj')
+            obj_file = osp.join(self.newshape_root, ho_params['synset_id'], ho_params['ins_name'], 'models/model_normalized_fused.obj')
         elif self.source == 'abo':
             obj_file = osp.join(self.newshape_root, 'abo-watertight', ho_params['ins_name'] + "_fused.obj")
         else:

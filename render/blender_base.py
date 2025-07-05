@@ -305,7 +305,7 @@ class BaseRenderer:
             raise RuntimeError("no objects in scene to compute bounding box for")
         return Vector(bbox_min), Vector(bbox_max)
 
-    def import_object2blender(self, dname, ins, obj_mat, synset_id):
+    def import_object2blender(self, dname, ins, obj_mat, synset_id, obj_name):
         """
         import object mesh/scene into blender scene
         :param dname: dataset name of the object
@@ -316,9 +316,20 @@ class BaseRenderer:
         :rtype:
         """
         blender_name_hum, blender_name_obj = 'procigen-hum', 'procigen-obj'
-        if dname == 'shapenet':
+        if dname == 'custom':
+            mesh_file = osp.join(paths.BEHAVE_OBJECTS_ROOT, obj_name, f'{obj_name}.obj')
+            bpy.ops.import_scene.obj(filepath=mesh_file, axis_forward='Y', axis_up='Z')
+            obj_object = bpy.context.selected_objects[-1]
+            obj_object.name = blender_name_obj 
+            bpy.ops.object.shade_smooth()
+            obj = bpy.data.objects[blender_name_obj]
+            obj.select_set(True)
+            self.mesh_names.append(blender_name_obj)
+            self.apply_transform(obj, obj_mat)
+
+        elif dname == 'shapenet':
             # simply apply the parameter
-            mesh_file = osp.join(paths.SHAPENET_ROOT, synset_id, ins, 'models/model_normalized.obj')
+            mesh_file = osp.join(paths.SHAPENET_ROOT, synset_id, ins, 'models/model_normalized_fused.obj')
             bpy.ops.import_scene.obj(filepath=mesh_file, axis_forward='Y', axis_up='Z')
             obj_object = bpy.context.selected_objects[-1]
             obj_object.name = blender_name_obj  # specify the name for the imported one
@@ -327,6 +338,10 @@ class BaseRenderer:
             obj.select_set(True)
             self.mesh_names.append(blender_name_obj)  # this allows deletion
             self.apply_transform(obj, obj_mat)  # now apply transformation to the object
+
+            for mat in obj.data.materials:
+                mat.name = f'obj_{mat.name}'
+
         elif dname == 'objaverse':
             # use objaverse lib to get path
             import objaverse
@@ -412,7 +427,49 @@ class BaseRenderer:
         obj_object = bpy.context.selected_objects[-1]
         obj_object.name = name # specify the name for the imported one
 
+        for mat in obj_object.data.materials:
+            mat.name = f'{name}_{mat.name}'
+
+        # 텍스처 이미지 적용
         self.assign_texture_image(name, text_file)
+
+        # Export 대상 명시적으로 선택
+        bpy.ops.object.select_all(action='DESELECT')
+        obj_object.select_set(True)
+        bpy.context.view_layer.objects.active = obj_object
+
+        # Export 경로 설정
+        # export_dir = osp.dirname(obj_file)
+        # export_name = osp.splitext(osp.basename(obj_file))[0] + "_textured"
+        # export_path = osp.join(export_dir, export_name + ".obj")
+
+        # Export: material & texture 포함
+        # bpy.ops.export_scene.obj(
+        #     filepath=export_path,
+        #     use_selection=True,
+        #     use_materials=True,
+        #     path_mode='COPY',  # 텍스처 이미지 복사
+        #     axis_forward='-Z',
+        #     axis_up='Y'
+        # )
+
+        # print(f"[INFO] Exported textured OBJ to: {export_path}")
+
+        # self.assign_texture_image(name, text_file)
+
+        # export_dir = osp.dirname(obj_file)
+        # export_name = osp.splitext(osp.basename(obj_file))[0] + "_textured"
+        # export_path = osp.join(export_dir, export_name + ".obj")
+
+        # bpy.ops.export_scene.obj(
+        #     filepath=export_path,
+        #     use_selection=True,
+        #     use_materials=True,
+        #     path_mode='COPY',  # 텍스처 이미지 복사
+        #     axis_forward='-Z',
+        #     axis_up='Y'
+        # )
+        # print(f"[INFO] Exported textured OBJ to: {export_path}")
 
     def assign_texture_image(self, name, text_file):
         "load texture image and assign it to the object specified by name"
@@ -450,21 +507,22 @@ class BaseRenderer:
         :return:
         :rtype:
         """
-        depth_obj[depth_obj == np.max(depth_obj)] = 0
-        depth_full[depth_full == np.max(depth_full)] = 0
-        mask_obj = (depth_obj <= depth_full) & (depth_obj > 0)
-        mask_hum = (~mask_obj) & (depth_full > 0)
-        mask_obj_full = depth_obj > 0
+        # depth_obj[depth_obj == np.max(depth_obj)] = 0
+        # depth_full[depth_full == np.max(depth_full)] = 0
+        # mask_obj = (depth_obj <= depth_full) & (depth_obj > 0)
+        # mask_hum = (~mask_obj) & (depth_full > 0)
+        # mask_obj_full = depth_obj > 0
 
-        mask_hum = mask_hum.astype(np.uint8) * 255
-        mask_obj = mask_obj.astype(np.uint8) * 255
-        mask_obj_full = mask_obj_full.astype(np.uint8) * 255
+        # mask_hum = mask_hum.astype(np.uint8) * 255
+        # mask_obj = mask_obj.astype(np.uint8) * 255
+        # mask_obj_full = mask_obj_full.astype(np.uint8) * 255
 
-        rgb_file = join(frame_folder, f'k{k}.color.0001.{self.ext}')
-        os.system(f'mv {rgb_file} {rgb_file.replace(".0001.jpg", ".jpg")}')
+        # rgb_file = join(frame_folder, f'k{k}.color.0001.{self.ext}')
+        # os.system(f'mv {rgb_file} {rgb_file.replace(".0001.jpg", ".jpg")}')
 
-        # save results
-        cv2.imwrite(join(frame_folder, f'k{k}.person_mask.png'),  mask_hum)
-        cv2.imwrite(join(frame_folder, f'k{k}.obj_rend_mask.png'), mask_obj)
-        cv2.imwrite(join(frame_folder, f'k{k}.obj_rend_full.png'), mask_obj_full)
-        cv2.imwrite(join(frame_folder, f'k{k}.depth.png'), (depth_full * 1000).astype(np.uint16))
+        # # save results
+        # cv2.imwrite(join(frame_folder, f'k{k}.person_mask.png'),  mask_hum)
+        # cv2.imwrite(join(frame_folder, f'k{k}.obj_rend_mask.png'), mask_obj)
+        # cv2.imwrite(join(frame_folder, f'k{k}.obj_rend_full.png'), mask_obj_full)
+        # cv2.imwrite(join(frame_folder, f'k{k}.depth.png'), (depth_full * 1000).astype(np.uint16))
+        return

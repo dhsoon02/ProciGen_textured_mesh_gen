@@ -108,6 +108,7 @@ class BatchSynthesizer(BaseSynthesizer):
 
                 newshape_corr = self.load_corr_points(ins, synsets[shape_ind])
                 # compute alignment to canonical mesh
+                # print(f'newshape_corr shape: {newshape_corr.shape}, ')
                 mat_comb = self.compute_newshape_transform(sample, newshape_corr)
                 newshape_corr = np.matmul(newshape_corr, mat_comb[:3, :3].T) + mat_comb[:3, 3]
                 obj_shape_new.v = np.matmul(obj_shape_new.v, mat_comb[:3, :3].T) + mat_comb[:3, 3]
@@ -133,12 +134,15 @@ class BatchSynthesizer(BaseSynthesizer):
                         "ins_name": ins
 
                     }
-                    self.save_output_single(bidx + i, mat_comb, outfolder, ret_dict, sample)
+                    # self.save_output_single(bidx + i, mat_comb, outfolder, ret_dict, sample)
+                    self.save_output_single(bidx + i, mat_comb, outfolder, ret_dict, sample, args)
+
 
                     if args.two_gender:
                         gender_other = 'male' if sample['gender'] == 'female' else 'female'
                         sample['gender'] = gender_other
-                        self.save_output_single(bidx + i, mat_comb, outfolder, ret_dict, sample, suffix='_other_gender')
+                        # self.save_output_single(bidx + i, mat_comb, outfolder, ret_dict, sample, suffix='_other_gender')
+                        self.save_output_single(bidx + i, mat_comb, outfolder, ret_dict, sample, args, suffix='_other_gender')
                     continue
 
                 num_contact = np.sum(mask_obj_pts)
@@ -240,7 +244,7 @@ class BatchSynthesizer(BaseSynthesizer):
             ret_dict['synset_id'] = [synsets[sid] for sid in shape_indices_cont]
             ret_dict['ins_name'] = [shapes[x] for x in shape_indices_cont]
             samples_cont = [samples[x - bidx] for x in out_indices]
-            self.save_output(out_indices, newshape_transforms, outfolder, ret_dict, samples_cont)
+            self.save_output(out_indices, newshape_transforms, outfolder, ret_dict, samples_cont, args)
 
             if args.two_gender: # for each new frame, optimize pose for both genders
                 gender_other = 'male' if gender == 'female' else 'female'
@@ -254,7 +258,7 @@ class BatchSynthesizer(BaseSynthesizer):
                 ret_dict['ins_name'] = [shapes[x] for x in shape_indices_cont]
                 for sample in samples_cont:
                     sample['gender'] = gender_other
-                self.save_output(out_indices, newshape_transforms, outfolder, ret_dict, samples_cont, suffix='_other_gender')
+                self.save_output(out_indices, newshape_transforms, outfolder, ret_dict, samples_cont, args, suffix='_other_gender')
 
 
             batch_end = time.time()
@@ -577,8 +581,8 @@ class BatchSynthesizer(BaseSynthesizer):
         parser.add_argument('-fs', '--start', type=int, default=0)
         parser.add_argument('-fe', '--end', type=int, default=None)
         parser.add_argument('-obj', '--object', default='chairblack', type=str, help='object name of the original dataset')
-        parser.add_argument('-sr', '--newshape_root', default="example/assets/new-shape-meshes", help='root path to new object shape meshes')
-        parser.add_argument('-scr', '--newshape_corr_root', default="example/assets/corr-new-shapes",
+        parser.add_argument('-sr', '--newshape_root', default="dataset/new-shape-meshes", help='root path to new object shape meshes')
+        parser.add_argument('-scr', '--newshape_corr_root', default="dataset/corr-new-shapes",
                             help='root path to new object shape correspondence points')
         parser.add_argument('-cat', '--object_category', help='object category name for shapenet/objaverse/abo')
         parser.add_argument('-o', '--outfolder', default='outputs')
@@ -613,8 +617,6 @@ def main():
         args.end = 16
 
     # path setup
-    args.newshape_category = args.object_category
-
     smplh_root = SMPL_MODEL_ROOT
     args.newshape_root = paths.SHAPENET_SIMPLIFIED_ROOT
     args.newshape_corr_root = paths.NEWSHAPE_CORR_ROOT

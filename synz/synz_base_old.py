@@ -23,7 +23,7 @@ from synz.geometry import GeometryUtils
 from synz import viz_utils
 import paths
 import open3d as o3d
-
+import shutil
 
 class BaseSynthesizer:
     def __init__(self, seqs_pattern,
@@ -45,6 +45,8 @@ class BaseSynthesizer:
         :param debug:
         :type debug:
         """
+        self.obj_temp_path = obj_temp_path
+
         seqs = InteractionSampler.get_seqs_path(behave_params_root, seqs_pattern)
         self.sampler = InteractionSampler(behave_params_root, seqs, smplh_root, verbose=debug)
         self.smplh_male = SMPL_Layer(model_root=smplh_root,
@@ -54,16 +56,18 @@ class BaseSynthesizer:
 
         # Load object mesh template for the pose sampled from InteractionSampler
         mesh = trimesh.load_mesh(obj_temp_path, process=False)
+        # print(mesh, "loaded with", len(mesh.vertices), "vertices and", len(mesh.faces), "faces")
         self.obj_temp = Mesh(np.array(mesh.vertices), np.array(mesh.faces))
         self.obj_temp.v = self.obj_temp.v - np.mean(self.obj_temp.v, axis=0)
         # o3d_mesh = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(self.obj_temp.v),
         #                                      o3d.utility.Vector3iVector(self.obj_temp.f))
         # self.objv_normals = np.array(o3d_mesh.compute_vertex_normals())  # object vertex normals
+        # print(corr_mesh_file, "loaded with", len(self.obj_temp.v), "vertices and", len(self.obj_temp.f), "faces")
         mesh2 = trimesh.load_mesh(corr_mesh_file, process=False)
         mesh2 = o3d.io.read_triangle_mesh(corr_mesh_file)
         # print(f"[Open3D] loaded with {len(mesh2.vertices)} vertices and {len(mesh2.triangles)} triangles")
         self.corr_v = np.array(mesh2.vertices)
-        # self.corr_v = np.array(trimesh.load_mesh(corr_mesh_file, process=False).vertices)
+        # print("Correspondence mesh loaded with", len(self.corr_v), "vertices")
 
         # path for new shapes from shapenet/abo/objaverse
         self.newshape_root = newshape_root  # watertight meshes
@@ -194,8 +198,21 @@ class BaseSynthesizer:
             print("Loading mesh from", file_orig, shape_ind)
         try:
             # use igl to load
-            mm = igl.read_obj(file_orig)
-            shape_orig = Mesh(mm[0], mm[3])  # this fix the problem!
+            # print("Loading mesh from", file_orig, shape_ind)
+            # mm = igl.read_obj(file_orig)
+            # shape_orig = Mesh(mm[0], mm[3])  # this fix the problem!
+            v, vt, vn, f_v, f_vt, f_vn = igl.read_obj(file_orig)
+
+            shape_orig = Mesh(v, f_v)
+            shape_orig.vt = vt
+            shape_orig.ft = f_vt
+
+            # texture_file 찾기 (.mtl 파일 파싱 or 이름 지정)
+            mtl_file = file_orig.replace(".obj", ".mtl")
+            texture_file = file_orig.replace(".obj", ".jpg")
+            if osp.exists(texture_file):
+                shape_orig.texture_file = texture_file
+
         except Exception as e:
             print(e)
             return None
@@ -218,6 +235,8 @@ class BaseSynthesizer:
         :param shape_corr:
         :return: 4x4 non-rigid transform matrix
         """
+        # print("DEBUG: shape_corr.shape =", shape_corr.shape)
+        # print("DEBUG: self.corr_v.shape =", self.corr_v.shape)
         mat, _, _ = trimesh.registration.procrustes(shape_corr, self.corr_v, scale=True)
         pose_obj = np.eye(4)  # rigid object pose
         pose_obj[:3, :3] = sample['obj_R']  # transform from caonincal behave object to interaction pose
@@ -225,7 +244,9 @@ class BaseSynthesizer:
         mat_comb = np.matmul(pose_obj, mat)
         return mat_comb
 
-    def save_output(self, indices, mat_comb, outfolder, ret_dict, samples, prefix='', suffix=''):
+    # def save_output(self, indices, mat_comb, outfolder, ret_dict, samples, prefix='', suffix=''):
+    def save_output(self, indices, mat_comb, outfolder, ret_dict, samples, args, prefix='', suffix=''):
+
         """
 
         :param ind:
@@ -249,10 +270,13 @@ class BaseSynthesizer:
                 'ins_name': ret_dict['ins_name'][i],
                 # "scale":
             }
-            self.save_output_single(indices[i], mat_comb[i], outfolder, ret_dict_i,
-                                samples[i], prefix, suffix)
+            self.save_output_single(indices[i], mat_comb[i], outfolder, ret_dict_i, samples[i], args,  prefix, suffix)
 
-    def save_output_single(self, ind, mat_comb, outfolder, ret_dict, sample, prefix='', suffix=''):
+            # self.save_output_single(indices[i], mat_comb[i], outfolder, ret_dict_i,
+            #                     samples[i], prefix, suffix)
+
+    # def save_output_single(self, ind, mat_comb, outfolder, ret_dict, sample, prefix='', suffix=''):
+    def save_output_single(self, ind, mat_comb, outfolder, ret_dict, sample, args, prefix='', suffix=''):
         """
         save output parameters
         :param ind: index of the object mesh
@@ -291,6 +315,72 @@ class BaseSynthesizer:
             # 'cont_ind_smpl': ret_dict['cont_ind_smpl'],
             # 'cont_ind_obj': ret_dict['cont_ind_obj']
         }, open(self.get_outfile(ind, outfolder, prefix, suffix), 'wb'))
+
+        print("Output saved to", self.get_outfile(ind, outfolder, prefix, suffix))
+        mesh_save_dir = osp.join(outfolder, f'{ind:05d}_obj')
+        os.makedirs(mesh_save_dir, exist_ok=True)
+
+        # new shape 다시 로딩 (faces 등 필요)
+        mesh_orig = self.load_newshape(args, 0, [ret_dict['ins_name']], ret_dict['synset_id'], num_faces=20000)
+
+        # 텍스처 정보 포함한 변환된 mesh 생성
+        mesh_obj = Mesh(ret_dict['obj_rot'] @ mesh_orig.v.T + ret_dict['obj_trans'][:, None], mesh_orig.f)
+
+        # 텍스처 정보 전달
+        if hasattr(mesh_orig, 'vt'):
+            mesh_obj.vt = mesh_orig.vt
+        if hasattr(mesh_orig, 'ft'):
+            mesh_obj.ft = mesh_orig.ft
+
+        # 텍스처 이미지 파일명 지정 (없으면 기본 이름 사용)
+        if hasattr(mesh_orig, 'texture_file'):
+            mesh_obj.texture_file = mesh_orig.texture_file
+        else:
+            mesh_obj.texture_file = 'stool_tex.jpg'  # 기본 이름
+
+        # 저장 경로 설정
+        obj_basename = f"{ret_dict['ins_name']}_fit"
+        obj_save_path = osp.join(mesh_save_dir, f"{obj_basename}.obj")
+
+        # # 텍스처 경로가 실제 존재하면 복사
+        # texture_src = osp.join(self.obj_temp_path, 'stool', mesh_obj.texture_file)
+        # texture_dst = osp.join(mesh_save_dir, mesh_obj.texture_file)
+        # if osp.isfile(texture_src):
+        #     shutil.copy(texture_src, texture_dst)
+        # else:
+        #     print(f"⚠️ Texture file not found: {texture_src}")
+        # 텍스처 경로 설정 (절대 경로로 정확히 지정)
+        texture_filename = 'stool_tex.jpg'
+        texture_src = osp.join('/root/dev/ProciGen/example/behave/objects/stool', texture_filename)
+        texture_dst = osp.join(mesh_save_dir, texture_filename)
+
+        # 복사 시도
+        if osp.isfile(texture_src):
+            shutil.copy(texture_src, texture_dst)
+            mesh_obj.texture_filepath = texture_dst  # 저장 전에 texture 경로도 갱신
+        else:
+            print(f"⚠️ Texture file not found: {texture_src}")
+
+
+        # .obj + .mtl 저장
+        mesh_obj.write_obj(obj_save_path, write_mtl=True)
+        print(f"✅ Saved textured obj to: {obj_save_path}")
+        # mesh_save_dir = osp.join(outfolder, f'{ind:05d}_obj')
+        # os.makedirs(mesh_save_dir, exist_ok=True)
+
+        # # new shape 다시 로딩 (faces 등 필요)
+        # # mesh_orig = self.load_newshape(sample, 0, [ret_dict['ins_name']], ret_dict['synset_id'], num_faces=20000)
+        # mesh_orig = self.load_newshape(args, 0, [ret_dict['ins_name']], ret_dict['synset_id'], num_faces=20000)
+
+
+        # # 텍스처 정보 전달
+        # mesh_obj = Mesh(ret_dict['obj_rot'] @ mesh_orig.v.T + ret_dict['obj_trans'][:, None], mesh_orig.f)
+        # if hasattr(mesh_orig, 'vt'): mesh_obj.vt = mesh_orig.vt
+        # if hasattr(mesh_orig, 'ft'): mesh_obj.ft = mesh_orig.ft
+        # if hasattr(mesh_orig, 'texture_file'): mesh_obj.texture_file = mesh_orig.texture_file
+
+        # # obj 저장
+        # mesh_obj.write_obj(osp.join(mesh_save_dir, f"{ret_dict['ins_name']}_fit.obj"))
 
     def save_original_meshes(self, mask, obj_verts, outfolder, smpl_verts, smpl_verts_inds, prefix=''):
         """
