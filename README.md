@@ -11,13 +11,13 @@ To run the full pipeline for generating human-object interaction textured meshes
 ```shell
 python scripts/run_all.py --object stool --category stool
 ```
-Data preparation
+**Data preparation**, 
 We provide some mini examples for quick start, this allows you to test re-render ProciGen dataset, synthesize and render interaction with new human and objects. Download it with:
 ```shell
 bash scripts/download_demo.sh
 ```
 
-Synthesize ProciGen
+**Synthesize ProciGen**, 
 Please refer to [synthesize ProciGen](./synz/synthesize_procigen.md) to understanding Datasets.
 
 
