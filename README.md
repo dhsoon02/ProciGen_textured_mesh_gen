@@ -1,9 +1,15 @@
 # ProciGen with textured mesh
-[ProciGen Dataset](https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.2VUEUS))
+[ProciGen Dataset](https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.2VUEUS)
 
 ProciGen is a synthetic human-object interaction dataset with **1M+ images** of human interacting with **21k+ different objects**.
 We achieve this by procedurally combining human, object and interaction datasets together. This repo provides code to access
 and generate ProciGen dataset with textured mesh.  
+
+## Pipeline
+To run the full pipeline for generating human-object interaction textured meshes, use the following command:
+
+```shell
+python scripts/run_all.py --object stool --category stool
 
 ## Dependencies
 This code is tested on `python 3.10, ubuntu 22.04`. See below for details on installing runtime environment.
