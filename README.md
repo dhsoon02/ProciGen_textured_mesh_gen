@@ -17,7 +17,7 @@ We provide some mini examples for quick start, this allows you to test re-render
 bash scripts/download_demo.sh
 ```
 
-**Synthesize ProciGen**, 
+**Dataset Structure**, 
 Please refer to [synthesize ProciGen](./synz/synthesize_procigen.md) to understanding Datasets.
 
 
